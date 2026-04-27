@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synopsys Pro | Elite academic review system</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-group input, .input-group select, .input-group textarea {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .btn-glow {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-glow:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.5);
+        }
+
+        .status-Accepted { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .status-Rejected { background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.2); }
+        .status-Pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+
+        .pay-NotPaid { background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.2); }
+        .pay-Pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .pay-Verified { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade { animation: fadeIn 0.5s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden">
+
+<!-- Toast Notification -->
+<div id="toast" class="fixed top-8 right-8 z-[100] transform translate-x-[150%] transition-transform duration-500">
+    <div id="toastInner" class="glass px-6 py-4 rounded-2xl flex items-center gap-4 border-l-4 border-indigo-500">
+        <div id="toastIcon" class="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-500/20 text-indigo-400">
+            <i class="fas fa-info-circle"></i>
+        </div>
+        <div>
+            <p id="toastTitle" class="text-sm font-bold text-white"></p>
+            <p id="toastMsg" class="text-xs text-slate-400"></p>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<nav id="navbar" class="hidden fixed top-0 w-full z-50 glass border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 btn-glow rounded-xl flex items-center justify-center text-white shadow-lg">
+                <i class="fas fa-feather-alt"></i>
+            </div>
+            <span class="text-xl font-black tracking-tighter">Synopsys<span class="text-indigo-400">.pro</span></span>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="hidden md:flex flex-col items-end mr-4">
+                <span id="navName" class="text-sm font-bold text-white"></span>
+                <span id="navRole" class="text-[10px] font-black uppercase text-indigo-400 tracking-widest"></span>
+            </div>
+            <button onclick="logout()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 transition-all border border-white/5">
+                <i class="fas fa-power-off"></i>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- Auth Hero -->
+<div id="authSection" class="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950 to-slate-950">
+    <div class="w-full max-w-md animate-fade">
+        <div class="glass p-10 md:p-12 rounded-[2.5rem] shadow-2xl relative">
+            <div class="text-center mb-10">
+                <h2 id="authTitle" class="text-3xl font-black text-white mb-2">Welcome Back</h2>
+                <p id="authSubtitle" class="text-slate-400 text-sm">Sign in with your User ID</p>
+            </div>
+
+            <!-- Login -->
+            <div id="loginForm" class="space-y-6">
+                <div class="input-group space-y-4">
+                    <div class="relative">
+                        <i class="far fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                        <input id="loginUsername" type="text" class="w-full pl-12 pr-4 py-4 rounded-2xl outline-none" placeholder="User ID">
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                        <input id="loginPass" type="password" class="w-full pl-12 pr-4 py-4 rounded-2xl outline-none" placeholder="Password">
+                    </div>
+                </div>
+                <button onclick="handleLogin()" id="loginBtn" class="w-full py-4 rounded-2xl text-white font-black btn-glow shadow-xl">Sign In</button>
+                <p class="text-center text-sm font-medium text-slate-400 mt-8">
+                    New user? <button onclick="toggleAuth(true)" class="text-indigo-400 font-bold hover:underline">Create Account</button>
+                </p>
+            </div>
+
+            <!-- Signup -->
+            <div id="signupForm" class="hidden space-y-6">
+                <div class="input-group space-y-4">
+                    <div class="relative">
+                        <i class="far fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                        <input id="signupUsername" type="text" class="w-full pl-12 pr-4 py-4 rounded-2xl outline-none" placeholder="Choose User ID">
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                        <input id="signupPass" type="password" class="w-full pl-12 pr-4 py-4 rounded-2xl outline-none" placeholder="Choose Password">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Account Type</label>
+                        <select id="signupRole" class="w-full px-5 py-4 rounded-2xl outline-none appearance-none bg-slate-900">
+                            <option value="student">Student</option>
+                            <option value="professor">Professor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="handleSignup()" id="signupBtn" class="w-full py-4 rounded-2xl text-white font-black btn-glow shadow-xl">Create Account</button>
+                <p class="text-center text-sm font-medium text-slate-400 mt-8">
+                    Already a member? <button onclick="toggleAuth(false)" class="text-indigo-400 font-bold hover:underline">Sign In</button>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Dashboard -->
+<main id="dashboard" class="hidden pt-32 pb-20 px-6 max-w-7xl mx-auto space-y-12">
+    <!-- Student -->
+    <div id="studentSection" class="hidden space-y-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div class="space-y-2">
+                <h1 class="text-4xl font-black text-white">Student Dashboard</h1>
+                <p class="text-slate-400">Track and manage your project submissions.</p>
+            </div>
+            <button onclick="toggleUpload()" class="btn-glow px-8 py-4 rounded-2xl font-black text-white shadow-lg flex items-center gap-3">
+                <i class="fas fa-plus"></i> New Submission
+            </button>
+        </div>
+
+        <div id="uploadCard" class="hidden glass p-8 md:p-10 rounded-[2.5rem] border border-indigo-500/20 animate-fade">
+            <div class="flex justify-between mb-8">
+                <h3 class="text-2xl font-bold">Submit Synopsis</h3>
+                <button onclick="toggleUpload()" class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="grid lg:grid-cols-2 gap-10">
+                <div class="input-group space-y-5">
+                    <input id="title" class="w-full px-6 py-4 rounded-2xl outline-none" placeholder="Project Title">
+                    <textarea id="desc" class="w-full px-6 py-4 rounded-2xl outline-none h-32 resize-none" placeholder="Project Abstract"></textarea>
+                </div>
+                <div class="space-y-6">
+                    <label class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-700 rounded-[2rem] bg-slate-800/30 cursor-pointer hover:bg-slate-800/50 hover:border-indigo-500 transition-all group">
+                        <div id="filePreview" class="text-center px-4">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-indigo-500 mb-3"></i>
+                            <p class="text-sm font-bold text-slate-300">Drop PDF <span class="text-indigo-400">or browse</span></p>
+                        </div>
+                        <input id="fileInput" type="file" class="hidden" accept=".pdf" onchange="handleFileSelect()">
+                    </label>
+                    <button onclick="handleUpload()" id="uploadBtn" class="w-full py-4 rounded-2xl text-white font-black btn-glow">Upload Now</button>
+                </div>
+            </div>
+        </div>
+        <div id="studentList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+    </div>
+
+    <!-- Professor -->
+    <div id="profSection" class="hidden space-y-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div class="space-y-2">
+                <h1 class="text-4xl font-black text-white">Review Hub</h1>
+                <p class="text-slate-400">Evaluate and provide feedback for assigned projects.</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="glass px-6 py-4 rounded-3xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center"><i class="fas fa-tasks"></i></div>
+                    <div><p id="assignedCount" class="text-xl font-black text-white">0</p><p class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Assigned</p></div>
+                </div>
+                <div class="glass px-6 py-4 rounded-3xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><i class="fas fa-check-circle"></i></div>
+                    <div><p id="completedCount" class="text-xl font-black text-white">0</p><p class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Completed</p></div>
+                </div>
+            </div>
+        </div>
+        <div id="profList" class="grid gap-10"></div>
+    </div>
+
+    <!-- Admin -->
+    <div id="adminSection" class="hidden space-y-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div class="space-y-2">
+                <h1 class="text-4xl font-black text-white">Administration</h1>
+                <p class="text-slate-400">System management and user database.</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="glass px-6 py-4 rounded-3xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center"><i class="fas fa-copy"></i></div>
+                    <div><p id="adminTotalCount" class="text-xl font-black text-white">0</p><p class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Total</p></div>
+                </div>
+                <div class="glass px-6 py-4 rounded-3xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center"><i class="fas fa-hourglass-half"></i></div>
+                    <div><p id="adminPendingCount" class="text-xl font-black text-white">0</p><p class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Pending</p></div>
+                </div>
+                <div class="glass px-6 py-4 rounded-3xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><i class="fas fa-check-double"></i></div>
+                    <div><p id="adminCompletedCount" class="text-xl font-black text-white">0</p><p class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Done</p></div>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-4">
+                <label class="glass hover:bg-indigo-600/20 px-6 py-4 rounded-3xl font-bold text-white shadow-lg flex items-center gap-3 text-xs cursor-pointer transition-all border border-indigo-500/20">
+                    <i class="fas fa-qrcode text-indigo-400"></i> Update UPI QR
+                    <input type="file" id="qrInput" class="hidden" accept="image/*" onchange="uploadQR()">
+                </label>
+                <button onclick="downloadStudents()" class="glass hover:bg-emerald-600/20 px-6 py-4 rounded-3xl font-bold text-white shadow-lg flex items-center gap-3 text-xs transition-all border border-emerald-500/20">
+                    <i class="fas fa-file-excel text-emerald-400"></i> Download Students
+                </button>
+                <button onclick="showUserDb()" class="glass hover:bg-slate-700/50 px-6 py-4 rounded-3xl font-bold text-white shadow-lg flex items-center gap-3 text-xs transition-all border border-white/5">
+                    <i class="fas fa-user-shield text-slate-400"></i> User DB
+                </button>
+            </div>
+        </div>
+        <div id="adminList" class="grid gap-8"></div>
+    </div>
+</main>
+
+<!-- Modals -->
+<div id="paymentModal" class="hidden fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6">
+    <div class="glass w-full max-w-lg p-10 rounded-[3.5rem] text-center animate-fade shadow-[0_0_100px_rgba(99,102,241,0.2)]">
+        <h3 class="text-2xl font-black text-white mb-2">Complete Payment</h3>
+        <p class="text-slate-400 text-xs mb-8">Scan the QR code exactly as shown to pay.</p>
+        <div id="qrDisplay" class="bg-white p-2 rounded-2xl inline-block mb-8 shadow-2xl overflow-hidden max-w-full">
+            <p class="text-slate-500 text-xs py-20 px-10">No QR Code set by admin.</p>
+        </div>
+        <div class="input-group mb-6">
+            <input id="utrInput" class="w-full px-6 py-4 rounded-2xl outline-none text-base text-center font-bold tracking-widest border border-indigo-500/20" placeholder="ENTER 12-DIGIT UTR">
+        </div>
+        <input type="hidden" id="pendingSynopsisId">
+        <button onclick="submitUTR()" class="w-full py-4 rounded-2xl text-white font-black text-base btn-glow mb-4 shadow-xl">Submit Verification</button>
+        <button onclick="document.getElementById('paymentModal').classList.add('hidden')" class="text-[10px] font-black text-slate-500 hover:text-white transition-colors uppercase tracking-widest">I will pay later</button>
+    </div>
+</div>
+
+<div id="userModal" class="hidden fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6">
+    <div class="glass w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
+        <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+            <h3 class="text-2xl font-black text-white">Manage Users</h3>
+            <button onclick="closeUserDb()" class="w-10 h-10 rounded-full hover:bg-white/10 text-slate-500"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="p-8 overflow-y-auto flex-1">
+            <table class="w-full text-left">
+                <thead class="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
+                    <tr><th class="pb-6">Profile</th><th class="pb-6">Role</th><th class="pb-6 text-right">Actions</th></tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "/api";
+let token = localStorage.getItem("token");
+let user = JSON.parse(localStorage.getItem("user") || "null");
+let socket;
+
+async function call(endpoint, method = "GET", body = null, file = false) {
+    const headers = {};
+    if (!file) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = token;
+    try {
+        const opt = { method, headers };
+        if (body) opt.body = file ? body : JSON.stringify(body);
+        const res = await fetch(`${API_BASE}${endpoint}`, opt);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Request failed");
+        return data;
+    } catch (err) {
+        console.error("API Error:", err);
+        notify(err.message, "error");
+        throw err;
+    }
+}
+
+function notify(msg, type = "success") {
+    const t = document.getElementById("toast");
+    const ti = document.getElementById("toastInner");
+    const title = document.getElementById("toastTitle");
+    const text = document.getElementById("toastMsg");
+    title.innerText = type === "error" ? "System Error" : "Success";
+    text.innerText = msg;
+    ti.className = `glass px-6 py-4 rounded-2xl flex items-center gap-4 border-l-4 ${type === "error" ? "border-rose-500" : "border-indigo-500"}`;
+    t.classList.remove("translate-x-[150%]");
+    setTimeout(() => t.classList.add("translate-x-[150%]"), 4000);
+}
+
+function toggleAuth(isSignup) {
+    document.getElementById("loginForm").classList.toggle("hidden", isSignup);
+    document.getElementById("signupForm").classList.toggle("hidden", !isSignup);
+    document.getElementById("authTitle").innerText = isSignup ? "Create Account" : "Welcome Back";
+}
+
+async function handleLogin() {
+    const username = document.getElementById("loginUsername").value;
+    const password = document.getElementById("loginPass").value;
+    const btn = document.getElementById("loginBtn");
+    if (!username || !password) return notify("User ID and password required", "error");
+    try {
+        btn.disabled = true; btn.innerText = "Connecting...";
+        const res = await call("/auth/login", "POST", { username, password });
+        onAuth(res.data.token, res.data);
+    } catch (err) {}
+    finally { btn.disabled = false; btn.innerText = "Sign In"; }
+}
+
+async function handleSignup() {
+    const username = document.getElementById("signupUsername").value;
+    const password = document.getElementById("signupPass").value;
+    const role = document.getElementById("signupRole").value;
+    const btn = document.getElementById("signupBtn");
+    if (!username || !password) return notify("All fields required", "error");
+    try {
+        btn.disabled = true; btn.innerText = "Creating...";
+        const res = await call("/auth/signup", "POST", { username, password, role });
+        notify(res.message);
+        toggleAuth(false);
+    } catch (err) {}
+    finally { btn.disabled = false; btn.innerText = "Create Account"; }
+}
+
+function onAuth(t, u) {
+    token = t; user = u;
+    localStorage.setItem("token", t); localStorage.setItem("user", JSON.stringify(u));
+    document.getElementById("authSection").classList.add("hidden");
+    document.getElementById("navbar").classList.remove("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+    document.getElementById("navName").innerText = u.name;
+    document.getElementById("navRole").innerText = u.role;
+    initSocket();
+    document.getElementById("studentSection").classList.toggle("hidden", u.role !== "student");
+    document.getElementById("profSection").classList.toggle("hidden", u.role !== "professor");
+    document.getElementById("adminSection").classList.toggle("hidden", u.role !== "admin");
+    loadData();
+}
+
+function logout() { localStorage.clear(); location.reload(); }
+
+function initSocket() {
+    socket = io();
+    socket.emit("join", user.role);
+    socket.on("notification", (d) => { notify(d.message); loadData(); });
+}
+
+async function loadData() {
+    try {
+        const res = await call("/synopsis");
+        if (user.role === "student") renderStudent(res.data);
+        if (user.role === "professor") renderProfessor(res.data);
+        if (user.role === "admin") renderAdmin(res.data);
+    } catch (err) {}
+}
+
+function toggleUpload() { document.getElementById("uploadCard").classList.toggle("hidden"); }
+function handleFileSelect() {
+    const f = document.getElementById("fileInput").files[0];
+    if (f) document.getElementById("filePreview").innerHTML = `<i class="fas fa-check-circle text-3xl text-emerald-500 mb-2"></i><p class="text-xs font-bold text-white">${f.name}</p>`;
+}
+
+async function handleUpload() {
+    const t = document.getElementById("title").value;
+    const d = document.getElementById("desc").value;
+    const f = document.getElementById("fileInput").files[0];
+    const btn = document.getElementById("uploadBtn");
+    if (!t || !f) return notify("Title and file required", "error");
+    const form = new FormData();
+    form.append("title", t); form.append("description", d); form.append("file", f);
+    try {
+        btn.disabled = true; btn.innerText = "Uploading...";
+        const res = await call("/synopsis", "POST", form, true);
+        notify("Uploaded! Please complete payment.");
+        toggleUpload(); loadData();
+        showPayment(res.data._id);
+    } catch (err) {}
+    finally { btn.disabled = false; btn.innerText = "Upload Now"; }
+}
+
+async function showPayment(id) {
+    document.getElementById("pendingSynopsisId").value = id;
+    document.getElementById("paymentModal").classList.remove("hidden");
+    const res = await call("/admin/qr-code");
+    if (res.url) document.getElementById("qrDisplay").innerHTML = `<img src="${res.url}" class="max-h-[450px] w-auto mx-auto rounded-lg shadow-sm">`;
+}
+
+async function submitUTR() {
+    const id = document.getElementById("pendingSynopsisId").value;
+    const utr = document.getElementById("utrInput").value;
+    if (!utr) return notify("Enter UTR number", "error");
+    try {
+        await call(`/synopsis/payment/${id}`, "PUT", { utr });
+        notify("Payment submitted!");
+        document.getElementById("paymentModal").classList.add("hidden");
+        loadData();
+    } catch (err) {}
+}
+
+async function uploadQR() {
+    const f = document.getElementById("qrInput").files[0];
+    if (!f) return;
+    const form = new FormData();
+    form.append("qr", f);
+    try {
+        await call("/admin/qr-code", "POST", form, true);
+        notify("QR Code Updated!");
+    } catch (err) {}
+}
+
+function renderStudent(data) {
+    const list = document.getElementById("studentList");
+    list.innerHTML = data.length ? "" : '<div class="col-span-full py-20 text-center glass rounded-[2rem] text-slate-500">No submissions yet.</div>';
+    data.forEach(d => {
+        const isVerified = d.paymentStatus === 'Verified';
+        list.innerHTML += `
+            <div class="glass p-8 rounded-[2.5rem] flex flex-col justify-between animate-fade">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="flex gap-4">
+                        <div class="flex flex-col items-center gap-1">
+                            <span class="px-2 py-0.5 rounded-lg text-[8px] font-black uppercase pay-${d.paymentStatus.replace(' ','')}">
+                                ${d.paymentStatus === 'Verified' ? '<i class="fas fa-check mr-1"></i>' : (d.paymentStatus === 'Pending' ? '<i class="fas fa-clock mr-1"></i>' : '<i class="fas fa-times mr-1"></i>')}
+                                ${d.paymentStatus}
+                            </span>
+                            <i class="fas fa-credit-card text-[10px] text-slate-500"></i>
+                        </div>
+                        <div class="flex flex-col items-center gap-1">
+                            <span class="px-2 py-0.5 rounded-lg text-[8px] font-black uppercase status-${d.status}">
+                                ${d.status === 'Accepted' ? '<i class="fas fa-check-double mr-1"></i>' : (d.status === 'Pending' ? '<i class="fas fa-hourglass-half mr-1"></i>' : '<i class="fas fa-ban mr-1"></i>')}
+                                ${d.status}
+                            </span>
+                            <i class="fas fa-file-signature text-[10px] text-slate-500"></i>
+                        </div>
+                    </div>
+                    <a href="${d.fileUrl}" target="_blank" class="w-10 h-10 glass rounded-xl flex items-center justify-center text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all shadow-lg border border-indigo-500/20" title="View PDF">
+                        <i class="far fa-file-pdf"></i>
+                    </a>
+                </div>
+                <h4 class="text-xl font-bold text-white mb-3">${d.title}</h4>
+                <div class="pt-6 border-t border-white/5 space-y-4">
+                    ${!isVerified ? `<button onclick="showPayment('${d._id}')" class="text-[10px] font-black text-indigo-400 hover:underline">PAY NOW / SUBMIT UTR</button>` : `<p class="text-[9px] font-black uppercase text-slate-500">Reviewer: ${d.assignedProfessorName || 'Pending Payment'}</p>`}
+                    ${d.feedback ? `<div class="bg-white/5 p-4 rounded-2xl italic text-xs text-slate-300">"${d.feedback}"</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+}
+
+function renderProfessor(data) {
+    const list = document.getElementById("profList");
+    list.innerHTML = "";
+    document.getElementById("assignedCount").innerText = data.length;
+    document.getElementById("completedCount").innerText = data.filter(d => d.status !== 'Pending').length;
+    data.forEach(d => {
+        const isPending = d.status === 'Pending';
+        list.innerHTML += `
+            <div class="glass rounded-[3rem] overflow-hidden flex flex-col lg:flex-row">
+                <div class="p-10 lg:w-1/2 flex flex-col">
+                    <h3 class="text-3xl font-black text-white mb-6">${d.title}</h3>
+                    
+                    <div class="space-y-6">
+                        ${isPending ? `
+                            <textarea id="feedback-${d._id}" class="w-full bg-slate-900/50 p-6 rounded-2xl border border-white/5 outline-none focus:border-indigo-500 h-32" placeholder="Feedback..."></textarea>
+                            <div class="grid grid-cols-2 gap-4">
+                                <button onclick="review('${d._id}', 'Accepted')" class="bg-emerald-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-emerald-600">
+                                    <i class="fas fa-check-circle"></i> Accept
+                                </button>
+                                <button onclick="review('${d._id}', 'Rejected')" class="bg-rose-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-rose-600">
+                                    <i class="fas fa-times-circle"></i> Reject
+                                </button>
+                            </div>
+                        ` : `<p class="text-white font-medium italic bg-white/5 p-6 rounded-2xl">"${d.feedback}"</p>`}
+
+                        <div class="pt-6 border-t border-white/5">
+                            <p class="text-[11px] font-black uppercase text-slate-500 tracking-widest mb-2">Instructions</p>
+                            <p class="text-sm text-slate-400 leading-relaxed">
+                                Review the submission details. Use the <i class="fas fa-expand-alt text-indigo-400 mx-1"></i> icon on the PDF preview to view it in full-screen mode if needed.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="lg:w-1/2 bg-slate-950 relative min-h-[500px]">
+                    <a href="${d.fileUrl}" target="_blank" class="absolute top-6 right-6 z-10 w-12 h-12 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all border border-white/10" title="View Fullscreen">
+                        <i class="fas fa-expand-alt"></i>
+                    </a>
+                    <iframe src="${d.fileUrl}" class="w-full h-full border-none"></iframe>
+                </div>
+            </div>
+        `;
+    });
+}
+
+async function renderAdmin(data) {
+    const list = document.getElementById("adminList"); list.innerHTML = "";
+    document.getElementById("adminTotalCount").innerText = data.length;
+    document.getElementById("adminPendingCount").innerText = data.filter(d => d.status === 'Pending').length;
+    document.getElementById("adminCompletedCount").innerText = data.filter(d => d.status !== 'Pending').length;
+
+    const pRes = await call("/synopsis/professors");
+    const profs = pRes.data;
+    data.forEach(d => {
+        const payReady = d.paymentStatus === 'Verified';
+        list.innerHTML += `
+            <div class="glass p-10 rounded-[3rem] space-y-8 animate-fade">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div class="text-center md:text-left">
+                        <h4 class="text-2xl font-black text-white">${d.title}</h4>
+                        <div class="flex gap-4 mt-4 justify-center md:justify-start">
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="px-3 py-1 rounded-xl text-[9px] font-black uppercase pay-${d.paymentStatus.replace(' ','')}">
+                                    ${d.paymentStatus === 'Verified' ? '<i class="fas fa-check-circle"></i>' : (d.paymentStatus === 'Pending' ? '<i class="fas fa-clock"></i>' : '<i class="fas fa-times-circle"></i>')}
+                                    ${d.paymentStatus}
+                                </span>
+                                <i class="fas fa-credit-card text-indigo-400/50 text-[10px]"></i>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="px-3 py-1 rounded-xl text-[9px] font-black uppercase status-${d.status}">
+                                    ${d.status === 'Accepted' ? '<i class="fas fa-check-double"></i>' : (d.status === 'Pending' ? '<i class="fas fa-hourglass-half"></i>' : '<i class="fas fa-ban"></i>')}
+                                    ${d.status}
+                                </span>
+                                <i class="fas fa-file-pdf text-indigo-400/50 text-[10px]"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">UTR / REFERENCE NUMBER</p>
+                        <p class="text-2xl font-black text-indigo-400 tracking-wider bg-white/5 px-8 py-3 rounded-2xl border border-indigo-500/20">${d.utr || 'NOT SUBMITTED'}</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <a href="${d.fileUrl}" target="_blank" class="w-14 h-14 glass rounded-2xl flex items-center justify-center text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all shadow-lg">
+                            <i class="far fa-file-pdf text-2xl"></i>
+                        </a>
+                        <button onclick="killSynopsis('${d._id}')" class="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center shadow-lg border border-rose-500/20">
+                            <i class="far fa-trash-alt text-2xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col lg:flex-row gap-6 items-center justify-between border-t border-white/5 pt-8">
+                    <div class="flex gap-4">
+                        <button onclick="verifyPayment('${d._id}', 'Verified')" class="bg-emerald-600 px-8 py-4 rounded-2xl text-xs font-black text-white hover:bg-emerald-700 transition-all shadow-xl flex items-center gap-2">
+                            <i class="fas fa-check"></i> APPROVE PAYMENT
+                        </button>
+                        <button onclick="verifyPayment('${d._id}', 'Rejected')" class="bg-rose-600 px-8 py-4 rounded-2xl text-xs font-black text-white hover:bg-rose-700 transition-all shadow-xl flex items-center gap-2">
+                            <i class="fas fa-times"></i> REJECT PAYMENT
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 max-w-md w-full">
+                        ${payReady ? `
+                            <div class="flex gap-3">
+                                <select id="assign-${d._id}" class="flex-1 bg-slate-900 border border-white/10 px-6 py-4 rounded-2xl text-sm outline-none focus:border-indigo-500 transition-all">
+                                    <option value="">Select Professor to Review</option>
+                                    ${profs.map(p => `<option value="${p._id}|${p.username}">${p.username}</option>`).join('')}
+                                </select>
+                                <button onclick="assign('${d._id}')" class="btn-glow px-8 py-4 rounded-2xl text-xs font-black text-white shadow-xl flex items-center gap-2">
+                                    <i class="fas fa-user-plus"></i> Assign
+                                </button>
+                            </div>
+                        ` : `
+                            <div class="text-center lg:text-right">
+                                <p class="text-xs font-bold text-slate-500 italic flex items-center justify-center lg:justify-end gap-2">
+                                    <i class="fas fa-lock"></i> Verification required to assign professor
+                                </p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+async function verifyPayment(id, status) {
+    try { await call(`/admin/payment-verify/${id}`, "PUT", { paymentStatus: status }); notify(`Payment ${status}`); loadData(); } catch (err) {}
+}
+
+async function assign(id) {
+    const v = document.getElementById(`assign-${id}`).value;
+    if (!v) return notify("Select professor", "error");
+    const [pId, pName] = v.split("|");
+    try { await call(`/synopsis/assign/${id}`, "PUT", { profId: pId, profName: pName }); notify("Assigned!"); loadData(); } catch (err) {}
+}
+
+async function downloadStudents() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/export-students`, { headers: { "Authorization": token } });
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = "Students.xlsx"; a.click();
+    } catch (err) {}
+}
+
+async function showUserDb() {
+    document.getElementById("userModal").classList.remove("hidden");
+    const res = await call("/admin/users");
+    const tbody = document.getElementById("userTableBody");
+    tbody.innerHTML = "";
+    res.data.forEach(u => {
+        tbody.innerHTML += `
+            <tr class="border-b border-white/5">
+                <td class="py-4 text-white font-bold">${u.username}</td>
+                <td><select onchange="roleUpdate('${u._id}', this.value)" class="bg-transparent text-indigo-400 font-black text-[10px]">${['student','professor','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
+                <td class="text-right"><button onclick="killUser('${u._id}')" class="text-rose-500"><i class="far fa-trash-alt"></i></button></td>
+            </tr>
+        `;
+    });
+}
+
+function closeUserDb() { document.getElementById("userModal").classList.add("hidden"); }
+async function roleUpdate(id, role) { try { await call(`/admin/users/${id}/role`, "PUT", { role }); notify("Role updated"); } catch (err) {} }
+async function killUser(id) { if (!confirm("Delete?")) return; try { await call(`/admin/users/${id}`, "DELETE"); showUserDb(); } catch (err) {} }
+async function killSynopsis(id) { if (!confirm("Delete?")) return; try { await call(`/synopsis/${id}`, "DELETE"); loadData(); } catch (err) {} }
+async function review(id, status) {
+    const f = document.getElementById(`feedback-${id}`).value;
+    if (!f) return notify("Feedback required", "error");
+    try { await call(`/synopsis/${id}`, "PUT", { status, feedback: f }); loadData(); } catch (err) {}
+}
+
+window.onload = () => { if (token && user) onAuth(token, user); else document.getElementById("authSection").classList.remove("hidden"); };
+</script>
+</body>
+</html>
